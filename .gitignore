@@ -1,0 +1,20 @@
+# Binaries
+*.exe
+*.syso
+*.7z
+
+# Logs
+*.log
+
+# Icons and images (if you want to keep them local)
+# 548c13b1-e6cf-4ddf-a452-6ecf2052556c.jpg
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Superpowers session files
+.superpowers/
+
+# Go specific
+vendor/
