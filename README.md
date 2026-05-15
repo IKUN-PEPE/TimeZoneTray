@@ -1,56 +1,116 @@
-# ZoneTray - 美国邮编时区查询工具
+# 🌍 ZoneTray - 美国邮编时区查询工具
 
-ZoneTray 是一个轻量级的 Windows 托盘工具，旨在帮助用户快速查询美国任意邮编对应的当前本地时间和时区。
+<p align="center">
+  <img src="assets/icon.jpg" width="128" height="128" alt="ZoneTray Icon">
+</p>
 
-## ✨ 核心功能
+<p align="center">
+  <img src="https://img.shields.io/badge/Language-Go-00ADD8?style=flat-square&logo=go" alt="Language">
+  <img src="https://img.shields.io/badge/Platform-Windows-0078D6?style=flat-square&logo=windows" alt="Platform">
+  <img src="https://img.shields.io/github/v/release/IKUN-PEPE/TimeZoneTray?style=flat-square&color=orange" alt="Release">
+  <img src="https://img.shields.io/github/license/IKUN-PEPE/TimeZoneTray?style=flat-square" alt="License">
+</p>
 
-- **托盘驻留**：运行后常驻系统托盘，不占用任务栏空间。
-- **快速查询**：点击托盘菜单弹出原生输入框，输入美国邮编即可一键查询。
-- **系统通知**：通过 Windows Toast 通知即时显示查询结果。
-- **开机自启**：支持在设置菜单中一键开启或关闭开机自动启动（通过注册表实现）。
-- **优化底层**：
-  - 采用 **Goroutine 并发解耦**，确保查询时 UI 界面永不卡死。
-  - 强制 **OS 线程锁定**，解决 Windows GUI API 兼容性问题。
-  - 引入 **Windows Manifest**，确保使用现代系统控件样式。
-- **本地日志**：自动生成 `zonetray.log`，记录运行状态与异常，方便排错。
+---
 
-## 🛠️ 技术栈
+**ZoneTray** 是一个用 Go 语言编写的轻量级 Windows 托盘工具。它专为需要频繁核对美国时区的用户设计，通过简单的邮编输入，即可瞬间获取当地时间，并以优雅的系统通知形式呈现。
 
-- **语言**: [Go (Golang)](https://golang.org/)
-- **UI 库**: `github.com/getlantern/systray` (托盘管理)
-- **对话框**: `github.com/gen2brain/dlgs` (原生输入框)
-- **通知**: `github.com/go-toast/toast` (Windows 通知)
-- **配置**: `golang.org/x/sys/windows/registry` (注册表操作)
-- **API**:
-  - 位置获取: [Zippopotam.us](http://api.zippopotam.us)
-  - 时间获取: [TimeAPI.io](https://timeapi.io)
+## ✨ 核心特性
 
-## 🚀 快速开始
+- **📥 极简交互**：右键点击托盘图标 -> 输入邮编 -> 获取结果。无需打开臃肿的窗口。
+- **🔔 系统集成**：利用 Windows Native Toast 发送通知，支持在通知中心查看历史记录。
+- **⚙️ 智能自启**：内置设置菜单，一键写入/删除注册表启动项。
+- **🛡️ 极致稳定**：
+  - **非阻塞 UI**：每个查询任务都在独立的 Goroutine 中运行，托盘菜单响应永不延迟。
+  - **底层锁程**：使用 `runtime.LockOSThread` 解决 Win32 对话框在 Go 调度下的卡死痛点。
+  - **现代样式**：嵌入 Windows Manifest，确保对话框遵循最新 Windows 10/11 视觉规范。
+- **📝 透明运行**：自动维护 `zonetray.log`，所有 API 请求与系统异常均可追溯。
 
-### 编译
+## 🛠️ 技术原理
 
-如果你已安装 Go 环境，可以使用以下命令编译出无黑窗口、带图标的 `.exe` 文件：
+### 查询工作流
+程序采用链式请求逻辑，确保数据的准确性：
 
-```powershell
-# 1. 整理依赖
-go mod tidy
-
-# 2. 编译最终成品
-go build -ldflags "-H windowsgui" -o ZoneTray.exe
+```mermaid
+graph TD
+    A[用户输入邮编] --> B{输入校验}
+    B -- 有效 --> C[API 1: Zippopotam]
+    B -- 空/取消 --> Z[结束]
+    C --> D[解析 经纬度]
+    D --> E[API 2: TimeAPI.io]
+    E --> F[解析 当地时间 & 时区]
+    F --> G[弹出 Windows Toast 通知]
+    G --> H[记录成功日志]
+    C -- 失败 --> I[弹出错误通知]
+    E -- 失败 --> I
+    I --> J[记录异常日志]
 ```
 
-### 运行
+### 底层架构
+```mermaid
+graph LR
+    subgraph UI_Layer [UI 表现层]
+        systray[System Tray]
+        dlgs[Dialogs]
+        toast[Windows Toast]
+    end
+    
+    subgraph Logic_Layer [业务逻辑层]
+        api[API Package]
+        config[Config/Registry]
+    end
+    
+    subgraph OS_Layer [系统交互层]
+        reg[Windows Registry]
+        net[HTTP Client]
+        log[File System Log]
+    end
 
-双击 `ZoneTray.exe` 即可启动。在系统右下角托盘找到图标，右键点击即可看到功能菜单。
+    systray --> dlgs
+    dlgs --> api
+    api --> net
+    api --> toast
+    systray --> config
+    config --> reg
+    UI_Layer --> log
+```
+
+## 🚀 快速上手
+
+### 直接运行 (推荐)
+从 [Releases](https://github.com/IKUN-PEPE/TimeZoneTray/releases) 页面下载最新的 `ZoneTray.exe`，双击即可使用。
+
+### 手动编译
+如果你想从源码构建：
+
+```powershell
+# 克隆仓库
+git clone https://github.com/IKUN-PEPE/TimeZoneTray.git
+cd TimeZoneTray
+
+# 安装资源工具 (仅需运行一次)
+go install github.com/akavel/rsrc@latest
+rsrc -manifest ZoneTray.exe.manifest -ico assets/icon.ico -o icon.syso
+
+# 编译 (隐藏黑窗口 + 压缩体积)
+go build -ldflags "-H windowsgui -s -w" -o ZoneTray.exe
+```
 
 ## 📂 项目结构
 
-- `main.go`: 程序入口，负责 UI 事件循环与逻辑集成。
-- `api/`: 核心业务逻辑，包含 API 请求处理及单元测试。
-- `config/`: 配置管理模块，负责 `config.json` 持久化与注册表自启设置。
-- `assets/`: 静态资源，包含程序图标。
-- `zonetray.log`: (运行后生成) 详细的运行日志。
+| 路径 | 职责 |
+| :--- | :--- |
+| `main.go` | **主程序**：负责托盘初始化、事件循环、并发调度和通知触发。 |
+| `api/` | **核心逻辑**：封装了两个地理/时间 API 的请求解析，包含 TDD 测试用例。 |
+| `config/` | **系统设置**：管理 `config.json` 的读写，以及 Windows 注册表自启逻辑。 |
+| `assets/` | **静态资源**：存放原始 JPG 图片及转换后的多尺寸 ICO 图标。 |
+| `zonetray.log`| **运行日志**：记录程序从启动到关闭的全过程，便于排查网络或 UI 冲突问题。 |
 
 ## 📝 许可证
 
-MIT License
+本项目采用 [MIT License](LICENSE) 开源。
+
+---
+<p align="center">
+  Made with ❤️ for efficiency by IKUN-PEPE
+</p>
